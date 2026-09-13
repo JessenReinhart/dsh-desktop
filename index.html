@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DeepSeek Harness</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; padding: 0; height: 100%; background: #0b0b0f; color: #eee; font: 14px/1.4 system-ui, sans-serif; }
+      body { display: grid; place-items: center; }
+      #loader { text-align: center; }
+      .spinner {
+        width: 36px; height: 36px; margin: 0 auto 14px;
+        border: 3px solid #444; border-top-color: #aaa; border-radius: 50%;
+        animation: spin .8s linear infinite;
+      }
+      .spinner.failed { border-top-color: #d86a6a; animation: none; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      small { color: #888; }
+      small.error { color: #d86a6a; }
+    </style>
+  </head>
+  <body>
+    <div id="loader">
+      <div class="spinner" id="spinner"></div>
+      <div id="title">Starting DeepSeek Harness…</div>
+      <small id="hint">waiting for dsh web</small>
+    </div>
+    <script>
+      // The hash in the URL encodes the splash state set by main.js:
+      //   (none) — initial boot
+      //   #restarting — DSH child is being recycled
+      //   #failed — restart attempt failed (auto-redirected to the error page)
+      const state = (location.hash || '').replace(/^#/, '');
+      const title = document.getElementById('title');
+      const hint = document.getElementById('hint');
+      const spinner = document.getElementById('spinner');
+      if (state === 'restarting') {
+        title.textContent = 'Restarting DeepSeek Harness…';
+        hint.textContent = 'stopping the dsh web process and starting it again';
+      } else if (state === 'failed') {
+        title.textContent = 'Restart failed';
+        hint.textContent = 'see the dialog for the captured output';
+        hint.classList.add('error');
+        spinner.classList.add('failed');
+      }
+    </script>
+  </body>
+</html>

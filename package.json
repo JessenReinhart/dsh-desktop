@@ -1,0 +1,64 @@
+{
+  "name": "dsh-desktop",
+  "version": "1.0.0",
+  "description": "Standalone desktop wrapper for DeepSeek Harness on Linux",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "build": "electron-builder --linux",
+    "dist": "electron-builder --linux AppImage deb"
+  },
+  "keywords": [
+    "deepseek",
+    "dsh",
+    "electron",
+    "standalone"
+  ],
+  "author": {
+    "name": "JessenReinhart",
+    "email": "jessen_1206@yahoo.com"
+  },
+  "homepage": "https://github.com/JessenReinhart",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^44.1.0",
+    "electron-builder": "^25.1.7"
+  },
+  "build": {
+    "appId": "com.jessen.dsh.desktop",
+    "productName": "DeepSeek Harness",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "dsh-desktop.sh",
+      "runtime-store.js",
+      "runtime-unifier.js"
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "plugin-guard.js",
+      "dsh-updater.js",
+      "runtime-store.js",
+      "runtime-unifier.js",
+      "health-supervisor.js",
+      "cordis-plugin-scanner.js",
+      "plugin-manager.html",
+      "recovery-center.html",
+      "index.html",
+      "icon.png",
+      "dsh-desktop.sh",
+      "dsh.desktop"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "icon": "icon.png"
+    }
+  }
+}

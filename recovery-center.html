@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DSH Recovery Center</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { max-width: 820px; margin: 0 auto; padding: 24px; background: #0b0b0f; color: #f1f1f5; line-height: 1.5; }
+    h1 { margin: 0 0 6px; font-size: 1.5rem; } h2 { margin: 0 0 8px; font-size: 1rem; }
+    p { margin: 0 0 12px; } .muted { color: #b8b8c5; }
+    .skip-link { position: fixed; left: 8px; top: 8px; transform: translateY(-160%); padding: 8px 12px; background: #fff; color: #111; border-radius: 7px; }
+    .skip-link:focus { transform: translateY(0); }
+    .panel { margin: 16px 0; padding: 16px; background: #15151c; border: 1px solid #363641; border-radius: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    button { padding: 9px 12px; border: 1px solid #555566; border-radius: 8px; background: #252530; color: inherit; cursor: pointer; }
+    button:hover { background: #333340; } button:disabled { opacity: .55; cursor: wait; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #72c7ff; outline-offset: 3px; }
+    .danger { border-color: #d68888; } .status { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; }
+    .status:empty { display: none; } .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+    @media (forced-colors: active) { .panel, button { color: CanvasText; background: Canvas; border-color: CanvasText; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#recovery-actions">Skip to recovery actions</a>
+  <header>
+    <h1>DSH Recovery Center</h1>
+    <p class="muted">Use these safe, reversible checks when DSH cannot start or a plugin causes trouble. Your chats and workspace are not deleted.</p>
+  </header>
+  <main>
+    <section class="panel" id="recovery-actions" tabindex="-1" aria-labelledby="diagnosis-heading">
+      <h2 id="diagnosis-heading">1. Diagnose</h2>
+      <p id="safe-mode-summary">Check plugin compatibility, Safe Mode, and host-package identity before making changes.</p>
+      <div class="actions"><button id="diagnose" type="button">Run diagnostic check</button></div>
+    </section>
+    <section class="panel" aria-labelledby="repair-heading">
+      <h2 id="repair-heading">2. Repair runtime links</h2>
+      <p>Restores the selected DSH runtime's shared package identity, then restarts DSH. This keeps plugins installed.</p>
+      <div class="actions"><button id="repair" type="button">Repair runtime and restart</button></div>
+    </section>
+    <section class="panel" aria-labelledby="restart-heading">
+      <h2 id="restart-heading">3. Restart only</h2>
+      <p>Restart DSH without changing plugins or runtime files.</p>
+      <div class="actions"><button id="restart" type="button">Restart DSH</button></div>
+    </section>
+    <section class="panel" aria-labelledby="safe-mode-heading">
+      <h2 id="safe-mode-heading">Safe Mode</h2>
+      <p>Safe Mode keeps chats and plugin packages, but temporarily disables non-core plugins after a crash loop.</p>
+      <div class="actions">
+        <button id="safe-restart" type="button">Restart in Safe Mode</button>
+        <button id="normal-restart" type="button">Restart normally and restore plugins</button>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="next-heading">
+      <h2 id="next-heading">If this does not fix it</h2>
+      <p>Open Plugin Manager to disable a recently added community plugin, or use the wrapper's Safe Mode when it is available.</p>
+      <div class="actions"><button id="open-manager" type="button">Open Plugin Manager</button></div>
+    </section>
+    <div id="result" class="panel status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
+  </main>
+  <script>
+    const result = document.getElementById('result');
+    function report(message, { error = false } = {}) {
+      result.setAttribute('aria-live', error ? 'assertive' : 'polite');
+      result.textContent = message;
+      result.focus();
+    }
+    async function run(button, workingLabel, action, success) {
+      const original = button.textContent;
+      button.disabled = true; button.textContent = workingLabel;
+      try { report(workingLabel); const value = await action(); report(success(value), { error: value && value.started === false }); }
+      catch (error) { report(`Action failed: ${error.message}`, { error: true }); }
+      finally { button.disabled = false; button.textContent = original; }
+    }
+    document.getElementById('diagnose').addEventListener('click', (event) => run(event.currentTarget, 'Checking…', async () => window.dshDesktop.checkPlugins(), (check) => {
+      const issues = [...(check.risks || []), ...(check.runtimeIssues || [])];
+      const peer = check.runtimePeerHealth;
+      return issues.length ? `Issues found:\n${issues.map((item) => typeof item === 'string' ? item : `${item.plugin}: ${item.peer || 'incompatible'}`).join('\n')}`
+        : `No declared plugin incompatibilities found.${peer ? `\nRuntime peers: ${peer.unified}/${peer.total} unified.` : ''}`;
+    }));
+    document.getElementById('repair').addEventListener('click', (event) => run(event.currentTarget, 'Repairing…', async () => window.dshDesktop.repairRuntimePeers(), (repair) => repair.started === false
+      ? `Runtime links were repaired, but DSH restart failed: ${repair.reason}`
+      : `Runtime repaired: ${repair.unified}/${repair.total} host packages unified. DSH restarted.`));
+    document.getElementById('restart').addEventListener('click', (event) => run(event.currentTarget, 'Restarting…', async () => window.dshDesktop.restartDsh(), (restart) => restart.started === false
+      ? `DSH could not restart: ${restart.reason}` : 'DSH restarted successfully.'));
+    document.getElementById('safe-restart').addEventListener('click', (event) => run(event.currentTarget, 'Starting Safe Mode…', async () => window.dshDesktop.restartInSafeMode(), (restart) => restart.started === false
+      ? `Safe Mode could not start: ${restart.reason}` : 'DSH restarted in Safe Mode.'));
+    document.getElementById('normal-restart').addEventListener('click', (event) => run(event.currentTarget, 'Restoring plugins…', async () => window.dshDesktop.restartNormally(), (restart) => restart.started === false
+      ? `Normal restart failed: ${restart.reason}` : 'DSH restarted normally; Safe Mode plugins were restored.'));
+    document.getElementById('open-manager').addEventListener('click', async () => {
+      try { await window.dshDesktop.openPluginManager(); report('Plugin Manager opened.'); }
+      catch (error) { report(`Could not open Plugin Manager: ${error.message}`, { error: true }); }
+    });
+    window.dshDesktop.getSafeModeStatus().then((safe) => {
+      const summary = document.getElementById('safe-mode-summary');
+      const state = safe.active ? `Safe Mode is active: ${safe.reason || 'recovery mode'}.` : 'Safe Mode is not active.';
+      summary.textContent = `${state} Recent failures: ${(safe.failures || []).length}.`;
+    }).catch(() => {});
+  </script>
+</body>
+</html>

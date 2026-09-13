@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DSH &amp; Plugin Manager</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b0b0f; color: #ececf1; line-height: 1.45; }
+    header { position: sticky; top: 0; padding: 20px 22px 14px; background: #0b0b0fee;
+             backdrop-filter: blur(12px); border-bottom: 1px solid #25252d; }
+    h1 { margin: 0 0 5px; font-size: 20px; }
+    header p, .muted { margin: 0; color: #9696a3; font-size: 13px; }
+    main { padding: 18px 22px 28px; }
+    h2 { margin: 0 0 5px; font-size: 15px; }
+    .panel { margin-bottom: 18px; padding: 15px; border: 1px solid #30303b;
+             border-radius: 11px; background: #121218; }
+    .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .version-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    select { min-width: 170px; border: 1px solid #383844; border-radius: 8px; padding: 8px 10px;
+             background: #202028; color: #f2f2f5; }
+    .badge { padding: 4px 8px; border-radius: 999px; color: #a9d7ff; background: #172638;
+             font: 11px ui-monospace, monospace; white-space: nowrap; }
+    .toolbar { display: flex; gap: 9px; margin-bottom: 16px; }
+    button { border: 1px solid #383844; border-radius: 8px; padding: 8px 12px;
+             background: #202028; color: #f2f2f5; cursor: pointer; }
+    button:hover { background: #2b2b36; }
+    button:focus-visible, select:focus-visible, a:focus-visible {
+      outline: 3px solid #72c7ff; outline-offset: 3px;
+    }
+    button:disabled { opacity: .45; cursor: default; }
+    .card { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 14px 15px;
+            margin: 9px 0; border: 1px solid #292932; border-radius: 10px; background: #131319; }
+    .name { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .version { margin-top: 4px; color: #8e8e9c; font: 12px ui-monospace, monospace; }
+    .reason { margin-top: 8px; color: #e4a7a7; font-size: 12px; max-width: 620px; }
+    .switch { align-self: center; min-width: 76px; }
+    .on { color: #93ddb3; } .off { color: #f0a6a6; }
+    .status-symbol { display: inline-block; min-width: 1.2em; font-weight: 700; }
+    .skip-link { position: fixed; z-index: 10; top: 8px; left: 8px; transform: translateY(-160%);
+      padding: 8px 12px; background: #f2f2f5; color: #111118; border-radius: 7px; }
+    .skip-link:focus { transform: translateY(0); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    #health, #update-status { margin: 0 0 16px; padding: 12px 14px; border-radius: 9px; background: #15151c;
+              border: 1px solid #2d2d38; white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; }
+    #health:empty, #update-status:empty { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+    @media (forced-colors: active) {
+      .panel, .card, #health, #update-status, button, select { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+      .badge { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+      .on, .off, .reason, .muted { color: CanvasText; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#manager-content">Skip to manager controls</a>
+  <header>
+    <h1>DSH &amp; Plugin Manager</h1>
+    <p>Safe DSH updates, compatibility preflight, and reversible plugin controls.</p>
+  </header>
+  <main id="manager-content" tabindex="-1">
+    <section class="panel" aria-labelledby="runtime-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="runtime-heading">DSH Runtime</h2>
+          <p class="muted" id="current-version">Reading installed version…</p>
+        </div>
+        <span class="badge" id="update-badge" role="status" aria-label="Update status">Checking for updates</span>
+      </div>
+      <div class="version-picker" role="group" aria-label="DSH runtime update controls">
+        <label class="visually-hidden" for="target-version">Target DSH version</label>
+        <select id="target-version"></select>
+        <button id="refresh-updates" type="button">Check updates</button>
+        <button id="preflight-update" type="button">Compatibility preflight</button>
+        <button id="install-update" type="button">Install &amp; restart</button>
+      </div>
+    </section>
+    <div id="update-status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
+    <div class="toolbar" role="group" aria-label="Plugin management controls">
+      <button id="refresh" type="button">Refresh plugins</button>
+      <button id="check" type="button">Check compatibility</button>
+      <button id="repair-runtime" type="button">Repair runtime &amp; restart</button>
+    </div>
+    <div id="health" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
+    <section aria-labelledby="plugins-heading">
+      <h2 id="plugins-heading">Installed plugins</h2>
+      <div id="plugins" role="list" aria-busy="true"><p class="muted">Loading plugins…</p></div>
+    </section>
+    <section class="panel" aria-labelledby="dynamic-heading">
+      <h2 id="dynamic-heading">Dynamic Cordis plugins</h2>
+      <p class="muted">Definitions discovered from DSH session history. Promote only code you trust; client-side plugins require manual packaging.</p>
+      <div id="dynamic-plugins" role="list" aria-busy="true"><p class="muted">Scanning session history…</p></div>
+    </section>
+  </main>
+  <script>
+    const plugins = document.getElementById('plugins');
+    const health = document.getElementById('health');
+    const updateStatus = document.getElementById('update-status');
+    const dynamicPlugins = document.getElementById('dynamic-plugins');
+    const targetVersion = document.getElementById('target-version');
+    const updateButtons = ['refresh-updates', 'preflight-update', 'install-update']
+      .map((id) => document.getElementById(id));
+
+    const escapeHtml = (value) => String(value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    function setStatus(element, message, { focus = false, assertive = false } = {}) {
+      element.setAttribute('aria-live', assertive ? 'assertive' : 'polite');
+      element.textContent = message;
+      if (focus) element.focus();
+    }
+
+    function setBusy(button, busy, busyLabel) {
+      if (busy) {
+        button.dataset.originalLabel ||= button.textContent;
+        button.disabled = true;
+        if (busyLabel) button.textContent = busyLabel;
+      } else {
+        button.disabled = false;
+        if (button.dataset.originalLabel) button.textContent = button.dataset.originalLabel;
+      }
+    }
+
+    function setUpdateBusy(busy) {
+      updateButtons.forEach((button) => { button.disabled = busy; });
+      targetVersion.disabled = busy;
+    }
+
+    function compatibilityLines(report) {
+      const lines = [`Preflight ${report.fromVersion} → ${report.toVersion}`];
+      for (const risk of report.introducedRisks || []) {
+        lines.push(`BLOCKER · ${risk.plugin}: ${risk.peer} ${risk.range} (target resolves ${risk.resolved || 'missing'})`);
+      }
+      for (const warning of report.introducedWarnings || []) {
+        lines.push(`NEW WARNING · ${warning.plugin}: ${warning.peer} ${warning.range} (target resolves ${warning.resolved || 'missing'})`);
+      }
+      for (const warning of report.warnings || []) {
+        if (!(report.introducedWarnings || []).some((item) => item.plugin === warning.plugin && item.peer === warning.peer)) {
+          lines.push(`EXISTING WARNING · ${warning.plugin}: ${warning.peer} ${warning.range} (target resolves ${warning.resolved || 'missing'})`);
+        }
+      }
+      if (report.smokeTest && !report.smokeTest.ok) {
+        lines.push(`BOOT TEST FAILED · ${report.smokeTest.reason}`);
+        for (const plugin of report.runtimeIssues || []) lines.push(`RUNTIME BLOCKER · ${plugin}`);
+        if (report.smokeTest.output) lines.push(`\n${report.smokeTest.output.slice(-2_500)}`);
+      } else if (report.smokeTest && report.smokeTest.ok) {
+        lines.push('BOOT TEST PASSED · candidate runtime started with the current profile.');
+      }
+      if (report.smokeTest?.peerHealth) {
+        const peers = report.smokeTest.peerHealth;
+        lines.push(`RUNTIME PEERS · ${peers.unified}/${peers.total} unified for DSH ${peers.runtimeVersion}`);
+        for (const item of peers.mismatches || []) lines.push(`IDENTITY CONFLICT · ${item.name}`);
+      }
+      if (report.postDisableSmokeTest) {
+        lines.push(report.postDisableSmokeTest.ok
+          ? 'RETEST PASSED · candidate boots after incompatible plugins are disabled.'
+          : `RETEST FAILED · ${report.postDisableSmokeTest.reason}`);
+      }
+      if (lines.length === 1) lines.push('Compatible: no declared plugin conflicts found.');
+      return lines;
+    }
+
+    async function loadUpdateInfo(refresh = false) {
+      setUpdateBusy(true);
+      try {
+        const info = await window.dshDesktop.getDshUpdateInfo(refresh);
+        document.getElementById('current-version').textContent = `Current ${info.currentVersion} · last healthy ${info.lastHealthyVersion}`;
+        document.getElementById('update-badge').textContent = info.pendingUpdate
+          ? `testing ${info.pendingUpdate.to}`
+          : info.updateAvailable ? `latest ${info.latestVersion}` : 'up to date';
+        const previous = targetVersion.value;
+        const choices = [...new Set([info.latestVersion, ...(info.versions || []), info.currentVersion].filter(Boolean))];
+        targetVersion.innerHTML = choices.map((version) => {
+          const tags = Object.entries(info.tags || {}).filter(([, value]) => value === version).map(([tag]) => tag);
+          return `<option value="${escapeHtml(version)}">${escapeHtml(version)}${tags.length ? ` · ${escapeHtml(tags.join(', '))}` : ''}</option>`;
+        }).join('');
+        if (choices.includes(previous)) targetVersion.value = previous;
+        else if (info.latestVersion) targetVersion.value = info.latestVersion;
+      } catch (error) {
+        setStatus(updateStatus, `Update check failed: ${error.message}`, { focus: true, assertive: true });
+      } finally {
+        setUpdateBusy(false);
+      }
+    }
+
+    document.getElementById('refresh-updates').addEventListener('click', async () => {
+      setStatus(updateStatus, 'Checking the npm registry…');
+      await loadUpdateInfo(true);
+      if (!updateStatus.textContent.startsWith('Update check failed')) setStatus(updateStatus, 'Version list refreshed.');
+    });
+
+    document.getElementById('preflight-update').addEventListener('click', async () => {
+      setUpdateBusy(true);
+      setStatus(updateStatus, `Downloading metadata and checking plugins against DSH ${targetVersion.value}…`);
+      try {
+        const report = await window.dshDesktop.preflightDshUpdate(targetVersion.value);
+        setStatus(updateStatus, compatibilityLines(report).join('\n'), { focus: true });
+      } catch (error) {
+        setStatus(updateStatus, `Preflight failed: ${error.message}`, { focus: true, assertive: true });
+      } finally {
+        setUpdateBusy(false);
+      }
+    });
+
+    document.getElementById('install-update').addEventListener('click', async () => {
+      const version = targetVersion.value;
+      setUpdateBusy(true);
+      setStatus(updateStatus, `Preflighting DSH ${version} before installation…`);
+      try {
+        let result = await window.dshDesktop.installDshUpdate(version, false);
+        if (result.blocked) {
+          const names = result.incompatiblePlugins || [];
+          const message = result.assessment
+            ? compatibilityLines(result.assessment).join('\n')
+            : 'Update cannot start.';
+          if (result.reason) {
+            setStatus(updateStatus, `${message}\n\nUpdate blocked: ${result.reason}`, { focus: true, assertive: true });
+            return;
+          }
+          const proceed = names.length > 0 && window.confirm(
+            `DSH ${version} introduces incompatibilities in:\n\n${names.join('\n')}\n\nDisable those plugins and continue?`,
+          );
+          if (!proceed) return;
+          result = await window.dshDesktop.installDshUpdate(version, true);
+        }
+        if (result.blocked) {
+          setStatus(updateStatus, `Update blocked: ${result.reason || 'a protected plugin is incompatible'}`, { focus: true, assertive: true });
+        } else if (result.rolledBack) {
+          setStatus(updateStatus, `Update failed its health check and was rolled back to ${result.to}.`, { focus: true, assertive: true });
+        } else if (result.started) {
+          setStatus(updateStatus, `DSH ${version} started. Waiting for the final plugin health confirmation…`, { focus: true });
+          setTimeout(() => loadUpdateInfo(false), 2_200);
+        } else {
+          setStatus(updateStatus, `Update did not complete: ${result.reason || 'unknown error'}`, { focus: true, assertive: true });
+        }
+      } catch (error) {
+        setStatus(updateStatus, `Update failed: ${error.message}`, { focus: true, assertive: true });
+      } finally {
+        setUpdateBusy(false);
+      }
+    });
+
+    async function render() {
+      plugins.setAttribute('aria-busy', 'true');
+      try {
+        const data = await window.dshDesktop.listPlugins();
+        plugins.innerHTML = data.plugins.length ? data.plugins.map((plugin) => `
+        <article class="card" role="listitem" aria-label="${escapeHtml(plugin.name)}, ${plugin.enabled ? 'enabled' : 'disabled'}">
+          <div>
+            <div class="name">${escapeHtml(plugin.name)}</div>
+            <div class="version">${escapeHtml(plugin.version)} · <span class="${plugin.enabled ? 'on' : 'off'}"><span class="status-symbol" aria-hidden="true">${plugin.enabled ? '●' : '○'}</span>${plugin.enabled ? 'Enabled' : 'Disabled'}</span></div>
+            ${plugin.reason ? `<div class="reason">${escapeHtml(plugin.reason)}</div>` : ''}
+          </div>
+          <button class="switch" type="button" aria-label="${plugin.protected ? 'Protected plugin; cannot be changed here' : `${plugin.enabled ? 'Disable' : 'Enable'} ${escapeHtml(plugin.name)}`}" data-name="${escapeHtml(plugin.name)}" data-enabled="${plugin.enabled}" ${plugin.protected ? 'disabled' : ''}>
+            ${plugin.protected ? 'Protected' : plugin.enabled ? 'Disable' : 'Enable'}
+          </button>
+        </article>`).join('') : '<p class="muted">No community plugins installed.</p>';
+
+        document.querySelectorAll('.switch:not(:disabled)').forEach((button) => {
+        button.addEventListener('click', async () => {
+          setBusy(button, true, 'Working…');
+          setStatus(health, `${button.dataset.enabled === 'true' ? 'Disabling' : 'Enabling'} ${button.dataset.name} and restarting DSH…`);
+          try {
+            const result = await window.dshDesktop.togglePlugin(button.dataset.name, button.dataset.enabled !== 'true');
+            setStatus(health, result.started === false ? `Restart result: ${result.reason}` : 'DSH restarted successfully.', { focus: true, assertive: result.started === false });
+            await render();
+          } catch (error) {
+            setStatus(health, `Could not change ${button.dataset.name}: ${error.message}`, { focus: true, assertive: true });
+            setBusy(button, false);
+          }
+        });
+        });
+      } finally {
+        plugins.setAttribute('aria-busy', 'false');
+      }
+    }
+
+    async function renderDynamicPlugins() {
+      dynamicPlugins.setAttribute('aria-busy', 'true');
+      try {
+        const data = await window.dshDesktop.listDynamicPlugins();
+        dynamicPlugins.innerHTML = data.plugins.length ? data.plugins.map((plugin) => `
+          <article class="card" role="listitem" aria-label="${escapeHtml(plugin.name)} dynamic Cordis plugin">
+            <div>
+              <div class="name">${escapeHtml(plugin.name)}</div>
+              <div class="version"><span class="status-symbol" aria-hidden="true">${plugin.wasRun ? '●' : '○'}</span>${plugin.wasRun ? 'Ran in a DSH session' : 'Defined in session history'} · ${plugin.hasClient ? 'client code present' : 'host-only'}</div>
+              ${plugin.purpose ? `<div class="reason">${escapeHtml(plugin.purpose)}</div>` : ''}
+            </div>
+            <button class="promote-dynamic" type="button" data-id="${escapeHtml(plugin.id)}" ${plugin.hasClient ? 'disabled aria-description="Client plugins need manual packaging."' : ''}>
+              ${plugin.hasClient ? 'Review required' : 'Install permanently'}
+            </button>
+          </article>`).join('') : '<p class="muted">No dynamic Cordis definitions found in saved sessions.</p>';
+        document.querySelectorAll('.promote-dynamic:not(:disabled)').forEach((button) => {
+          button.addEventListener('click', async () => {
+            if (!window.confirm('Install this model-authored Host plugin into the permanent Electron profile and restart DSH? Only continue if you trust its code.')) return;
+            setBusy(button, true, 'Installing…');
+            setStatus(health, 'Creating a permanent local Cordis bundle and restarting DSH…');
+            try {
+              const result = await window.dshDesktop.promoteDynamicPlugin(button.dataset.id);
+              setStatus(health, result.started === false
+                ? `Plugin was installed as ${result.packageName}, but restart failed: ${result.reason}`
+                : `Installed ${result.packageName} permanently and restarted DSH.`, { focus: true, assertive: result.started === false });
+              await Promise.all([render(), renderDynamicPlugins()]);
+            } catch (error) {
+              setStatus(health, `Could not install dynamic plugin: ${error.message}`, { focus: true, assertive: true });
+              setBusy(button, false);
+            }
+          });
+        });
+      } finally {
+        dynamicPlugins.setAttribute('aria-busy', 'false');
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', () => {
+      setStatus(health, 'Refreshing installed plugins…');
+      render().then(() => setStatus(health, 'Plugin list refreshed.')).catch((error) => setStatus(health, error.message, { focus: true, assertive: true }));
+    });
+    document.getElementById('check').addEventListener('click', async () => {
+      setStatus(health, 'Checking installed plugins…');
+      let report;
+      try {
+        report = await window.dshDesktop.checkPlugins();
+      } catch (error) {
+        setStatus(health, `Compatibility check failed: ${error.message}`, { focus: true, assertive: true });
+        return;
+      }
+      const lines = [`DSH ${report.dshVersion}`];
+      if (report.error) lines.push(`Check error: ${report.error}`);
+      for (const risk of report.risks || []) lines.push(`INCOMPATIBLE · ${risk.plugin}: ${risk.peer} ${risk.range} (found ${risk.resolved || 'missing'})`);
+      for (const warning of report.warnings || []) lines.push(`WARNING · ${warning.plugin}: ${warning.peer} ${warning.range} (found ${warning.resolved || 'missing'})`);
+      for (const issue of report.runtimeIssues || []) lines.push(`RUNTIME · ${issue}`);
+      if (report.runtimePeerHealth) {
+        const peers = report.runtimePeerHealth;
+        lines.push(`RUNTIME PEERS · ${peers.unified}/${peers.total} unified for DSH ${peers.runtimeVersion}`);
+        for (const item of peers.mismatches || []) lines.push(`IDENTITY CONFLICT · ${item.name}`);
+      }
+      if (lines.length === 1) lines.push('No declared incompatibilities found. Runtime-only API breaks can still be recovered on the next failed boot.');
+      setStatus(health, lines.join('\n'), { focus: true, assertive: Boolean(report.error || (report.risks || []).length) });
+    });
+
+    document.getElementById('repair-runtime').addEventListener('click', async (event) => {
+      setBusy(event.currentTarget, true, 'Repairing…');
+      setStatus(health, 'Repairing host-package identity links and restarting DSH…');
+      try {
+        const result = await window.dshDesktop.repairRuntimePeers();
+        setStatus(health, result.started === false
+          ? `Repair completed, but restart failed: ${result.reason}`
+          : `Runtime repaired · ${result.unified}/${result.total} host packages unified · DSH restarted.`, { focus: true, assertive: result.started === false });
+      } catch (error) {
+        setStatus(health, `Runtime repair failed: ${error.message}`, { focus: true, assertive: true });
+      } finally {
+        setBusy(event.currentTarget, false);
+      }
+    });
+
+    Promise.all([render(), renderDynamicPlugins(), loadUpdateInfo(false)]).catch((error) => setStatus(health, error.message, { focus: true, assertive: true }));
+  </script>
+</body>
+</html>

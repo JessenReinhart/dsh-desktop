@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+# Local DSH state and generated toolkit data.
+.dsh/
+.dsh-vision-toolkit/artifacts/
+.dsh-vision-toolkit/tmp/
+copied_plugins/.dsh-market/
+
+# Downloaded package artifact; dependencies are restored from package-lock.json.
+*.tgz
+
+# OS/editor noise.
+.DS_Store
+*.log

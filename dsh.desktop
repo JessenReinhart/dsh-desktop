@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=DeepSeek Harness
+GenericName=AI Coding Agent
+Comment=DeepSeek Harness desktop app (Electron wrapper)
+Exec=/home/jessen/projects/dsh-desktop/start-dsh-desktop.sh
+Icon=dsh
+Terminal=false
+Categories=Development;
+Keywords=deepseek;dsh;ai;agent;coding;
+StartupNotify=true
+StartupWMClass=DeepSeek Harness
