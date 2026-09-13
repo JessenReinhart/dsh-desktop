@@ -5,22 +5,26 @@
     <title>DeepSeek Harness</title>
     <style>
       :root { color-scheme: dark; }
-      html, body { margin: 0; padding: 0; height: 100%; background: #0b0b0f; color: #eee; font: 14px/1.4 system-ui, sans-serif; }
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #090b14; color: #eee; font: 14px/1.4 system-ui, sans-serif; }
       body { display: grid; place-items: center; }
-      #loader { text-align: center; }
+      body::before, body::after { content: ''; position: fixed; width: 38rem; height: 38rem; border-radius: 50%; filter: blur(90px); opacity: .22; pointer-events: none; }
+      body::before { top: -25rem; left: -18rem; background: #725aff; } body::after { right: -22rem; bottom: -28rem; background: #1ccab8; }
+      #loader { position: relative; min-width: 310px; padding: 31px 34px; text-align: center; border: 1px solid #ffffff17; border-radius: 22px; background: #171a28d9; box-shadow: 0 26px 80px #0007; backdrop-filter: blur(18px); }
       .spinner {
-        width: 36px; height: 36px; margin: 0 auto 14px;
-        border: 3px solid #444; border-top-color: #aaa; border-radius: 50%;
+        width: 40px; height: 40px; margin: 0 auto 18px;
+        border: 3px solid #ffffff1f; border-top-color: #a79dff; border-radius: 50%;
         animation: spin .8s linear infinite;
       }
       .spinner.failed { border-top-color: #d86a6a; animation: none; }
       @keyframes spin { to { transform: rotate(360deg); } }
-      small { color: #888; }
-      small.error { color: #d86a6a; }
+      #title { font-weight: 650; letter-spacing: -.015em; } small { display: block; margin-top: 6px; color: #929ab2; }
+      small.error { color: #ffaaaa; }
+      .brand { margin-bottom: 15px; color: #aaa1ff; font: 700 10px ui-monospace, monospace; letter-spacing: .13em; text-transform: uppercase; }
     </style>
   </head>
   <body>
     <div id="loader">
+      <div class="brand">DeepSeek Harness · Desktop</div>
       <div class="spinner" id="spinner"></div>
       <div id="title">Starting DeepSeek Harness…</div>
       <small id="hint">waiting for dsh web</small>

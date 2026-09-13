@@ -28,8 +28,8 @@ const {
   nativeImage,
 } = require('electron');
 const { spawn } = require('node:child_process');
-const { existsSync } = require('node:fs');
-const { join, resolve } = require('node:path');
+const { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } = require('node:fs');
+const { dirname, join, resolve } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const net = require('node:net');
 const { createPluginGuard } = require('./plugin-guard');
@@ -71,6 +71,7 @@ let mainWindow = null;
 let tray = null;
 let pluginManagerWindow = null;
 let recoveryCenterWindow = null;
+let onboardingWindow = null;
 let childStdout = '';
 let resolvedUrl = null;
 let restarting = false;
@@ -85,6 +86,20 @@ const runtimePluginIssues = new Set();
 // alive so reopening the tray restores the live session.
 let backgroundMode = true;
 let trayHintShown = false;
+
+const ONBOARDING_STATE_FILE = join(ELECTRON_PROFILE_DIR, '.dsh-desktop-onboarding.json');
+
+function onboardingState() {
+  try { return JSON.parse(readFileSync(ONBOARDING_STATE_FILE, 'utf8')) || {}; } catch { return {}; }
+}
+
+function saveOnboardingState(value) {
+  mkdirSync(dirname(ONBOARDING_STATE_FILE), { recursive: true });
+  const temporary = `${ONBOARDING_STATE_FILE}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  renameSync(temporary, ONBOARDING_STATE_FILE);
+  return value;
+}
 
 // Session management
 function loadSessions() {
@@ -531,6 +546,37 @@ function openRecoveryCenter() {
   recoveryCenterWindow.on('closed', () => { recoveryCenterWindow = null; });
   recoveryCenterWindow.loadFile(join(__dirname, 'recovery-center.html')).catch((err) => {
     console.error(`[dsh-desktop] failed to open Recovery Center: ${err.message}`);
+  });
+}
+
+function openOnboarding() {
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.show();
+    onboardingWindow.focus();
+    return;
+  }
+  onboardingWindow = new BrowserWindow({
+    width: 940,
+    height: 670,
+    minWidth: 720,
+    minHeight: 540,
+    title: `${APP_NAME} · Welcome`,
+    backgroundColor: '#090b14',
+    autoHideMenuBar: true,
+    icon: existsSync(ICON_PATH) ? ICON_PATH : undefined,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  onboardingWindow.on('closed', () => {
+    onboardingWindow = null;
+    if (!quitting && (!mainWindow || mainWindow.isDestroyed())) showWindow();
+  });
+  onboardingWindow.loadFile(join(__dirname, 'onboarding.html')).catch((err) => {
+    console.error(`[dsh-desktop] failed to open onboarding: ${err.message}`);
   });
 }
 
@@ -1221,6 +1267,10 @@ function buildMenu() {
           accelerator: 'CommandOrControl+Shift+R',
           click: () => openRecoveryCenter(),
         },
+        {
+          label: 'Welcome & Getting Started…',
+          click: () => openOnboarding(),
+        },
         ...(safeMode.active ? [{
           label: 'Restart normally (restore Safe Mode plugins)',
           click: async () => { restoreNormalMode(); await restartDsh(); },
@@ -1322,6 +1372,24 @@ ipcMain.handle('dsh-desktop:recovery:open', () => {
   return { ok: true };
 });
 
+ipcMain.handle('dsh-desktop:onboarding:status', async () => {
+  const peerHealth = await dshUpdater.runtimePeerHealth();
+  return {
+    completedAt: onboardingState().completedAt || null,
+    dshVersion: dshUpdater.currentVersion(),
+    runtimePeers: { unified: peerHealth.peers.length - peerHealth.mismatches.length, total: peerHealth.peers.length },
+    safeMode: safeModeStatus(),
+  };
+});
+
+ipcMain.handle('dsh-desktop:onboarding:complete', async () => {
+  saveOnboardingState({ completedAt: new Date().toISOString() });
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.close();
+  if (!resolvedUrl) return { ok: false, reason: 'DSH is still starting' };
+  showWindow();
+  return { ok: true };
+});
+
 ipcMain.handle('dsh-desktop:updates:info', (_event, refresh) => dshUpdater.info(Boolean(refresh)));
 
 ipcMain.handle('dsh-desktop:updates:preflight', (_event, version) => dshUpdater.assess(String(version)));
@@ -1406,7 +1474,8 @@ app.whenReady().then(async () => {
   try {
     resolvedUrl = await waitForChildUrl(child, START_TIMEOUT_MS);
     await waitForUrl(resolvedUrl, CONNECT_TIMEOUT_MS);
-    await createWindow(resolvedUrl);
+    if (onboardingState().completedAt) await createWindow(resolvedUrl);
+    else openOnboarding();
     markDshReady(child);
   } catch (err) {
     killChild();

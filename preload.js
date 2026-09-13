@@ -26,6 +26,8 @@ const bridge = {
   restartNormally: () => ipcRenderer.invoke('dsh-desktop:safe-mode:restart-normal'),
   openPluginManager: () => ipcRenderer.invoke('dsh-desktop:plugins:open'),
   openRecoveryCenter: () => ipcRenderer.invoke('dsh-desktop:recovery:open'),
+  getOnboardingStatus: () => ipcRenderer.invoke('dsh-desktop:onboarding:status'),
+  completeOnboarding: () => ipcRenderer.invoke('dsh-desktop:onboarding:complete'),
   getDshUpdateInfo: (refresh = false) => ipcRenderer.invoke('dsh-desktop:updates:info', Boolean(refresh)),
   preflightDshUpdate: (version) => ipcRenderer.invoke('dsh-desktop:updates:preflight', String(version)),
   installDshUpdate: (version, disableIncompatible = false) => ipcRenderer.invoke(

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Welcome to DeepSeek Harness Desktop</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; overflow: hidden; color: #f4f2f8; background: #0b0b0e; }
+    body::before, body::after { position: fixed; content: ""; width: 48rem; height: 48rem; border-radius: 50%; filter: blur(112px); opacity: .15; pointer-events: none; }
+    body::before { top: -35rem; left: -30rem; background: #7555e8; }
+    body::after { right: -34rem; bottom: -38rem; background: #43348e; }
+    main { position: relative; display: grid; min-height: 100vh; place-items: center; padding: 28px; }
+    .welcome { width: min(100%, 748px); padding: clamp(40px, 8vw, 76px); border: 1px solid #ffffff14; border-radius: 22px; background: linear-gradient(145deg, #18181d 0%, #121216 100%); box-shadow: 0 26px 90px #00000070; }
+    .mark { position: relative; width: 31px; height: 31px; margin-bottom: 52px; transform: rotate(45deg); border: 1px solid #b7a9ff; border-radius: 7px; background: linear-gradient(135deg, #7560d7, #3b2d7a); box-shadow: 0 0 32px #765fff75; }
+    .mark::after { position: absolute; inset: 8px; content: ""; border: 1px solid #e5dfff; border-radius: 3px; }
+    .eyebrow { margin: 0 0 20px; color: #a9a1b7; font: 600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { max-width: 560px; margin: 0; font-family: Iowan Old Style, Palatino Linotype, Book Antiqua, Georgia, serif; font-size: clamp(44px, 6.8vw, 72px); font-weight: 400; letter-spacing: -.06em; line-height: .98; }
+    .lede { max-width: 460px; margin: 25px 0 38px; color: #b9b6c0; font-size: 16px; line-height: 1.65; }
+    .runtime { display: flex; align-items: center; gap: 9px; min-height: 20px; margin: 0 0 33px; color: #96929f; font-size: 12px; }
+    .runtime::before { width: 7px; height: 7px; content: ""; border-radius: 50%; background: #72d6a0; box-shadow: 0 0 0 4px #72d6a018; }
+    .runtime.attention::before { background: #ee9d77; box-shadow: 0 0 0 4px #ee9d7718; }
+    .runtime.safe::before { background: #d6b76f; box-shadow: 0 0 0 4px #d6b76f18; }
+    .actions { display: flex; align-items: center; gap: 22px; }
+    button, a { font: 600 13px/1.2 Inter, ui-sans-serif, system-ui, sans-serif; }
+    button { min-height: 45px; border: 1px solid #9f8dff; border-radius: 10px; padding: 0 20px; background: linear-gradient(115deg, #7058da, #876ef3); color: #fff; box-shadow: 0 12px 28px #4a399755; cursor: pointer; }
+    button:hover { background: linear-gradient(115deg, #8069ed, #977efc); }
+    button:disabled { cursor: wait; opacity: .72; }
+    a { color: #aaa5b4; cursor: pointer; text-decoration: none; } a:hover { color: #f0edf8; text-decoration: underline; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #7bd7ff; outline-offset: 4px; }
+    @media (max-width: 520px) { main { padding: 14px; } .welcome { min-height: calc(100vh - 28px); display: flex; flex-direction: column; justify-content: center; padding: 38px 30px; } .mark { margin-bottom: 40px; } .actions { align-items: flex-start; flex-direction: column; gap: 18px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+    @media (forced-colors: active) { .welcome, button { border-color: CanvasText; background: Canvas; color: CanvasText; } .runtime::before { background: CanvasText; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="welcome" aria-labelledby="welcome-title">
+      <div class="mark" aria-hidden="true"></div>
+      <p class="eyebrow">DeepSeek Harness Desktop</p>
+      <h1 id="welcome-title">Your workspace is ready.</h1>
+      <p class="lede">A stable local home for your tools, sessions, and ideas.</p>
+      <p class="runtime" id="runtime-status" role="status">Verifying local runtime…</p>
+      <div class="actions">
+        <button id="open-workspace" type="button">Open workspace</button>
+        <a id="recovery-settings" href="#">Recovery &amp; settings</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    const statusLine = document.getElementById('runtime-status');
+    const openWorkspace = document.getElementById('open-workspace');
+    function showRuntimeStatus(status) {
+      const peers = status.runtimePeers;
+      if (status.safeMode.active) {
+        statusLine.className = 'runtime safe';
+        statusLine.textContent = `Safe Mode active · Runtime ${peers.unified} / ${peers.total} verified`;
+        return;
+      }
+      statusLine.className = 'runtime';
+      statusLine.textContent = `Runtime verified · ${peers.unified} / ${peers.total}`;
+    }
+    window.dshDesktop.getOnboardingStatus().then(showRuntimeStatus).catch(() => {
+      statusLine.className = 'runtime attention';
+      statusLine.textContent = 'Runtime status needs attention.';
+    });
+    openWorkspace.addEventListener('click', async () => {
+      openWorkspace.disabled = true;
+      openWorkspace.textContent = 'Opening…';
+      const result = await window.dshDesktop.completeOnboarding();
+      if (!result.ok) {
+        openWorkspace.disabled = false;
+        openWorkspace.textContent = 'Try again';
+        statusLine.className = 'runtime attention';
+        statusLine.textContent = result.reason || 'DSH is still starting.';
+      }
+    });
+    document.getElementById('recovery-settings').addEventListener('click', (event) => {
+      event.preventDefault();
+      window.dshDesktop.openRecoveryCenter();
+    });
+  </script>
+</body>
+</html>
