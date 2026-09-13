@@ -5,7 +5,7 @@ dist/
 .dsh/
 .dsh-vision-toolkit/artifacts/
 .dsh-vision-toolkit/tmp/
-copied_plugins/.dsh-market/
+copied_plugins/
 
 # Downloaded package artifact; dependencies are restored from package-lock.json.
 *.tgz
