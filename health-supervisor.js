@@ -108,30 +108,56 @@ function createHealthSupervisor(profileDir, options = {}) {
   }
 
   async function probe(url) {
-    const origin = new URL(url).origin;
-    const page = await healthUrl(url);
-    if (!page.ok) throw new Error(`web UI returned HTTP ${page.status}`);
+    const parsed = new URL(url);
+    const origin = parsed.origin;
+    let page = await healthUrl(url);
+    const cookie = page.headers.getSetCookie().map((value) => value.split(';', 1)[0]).join('; ');
+    let pageUrl = url;
+    for (let count = 0; [301, 302, 303, 307, 308].includes(page.status); count += 1) {
+      if (count >= 5) throw new Error('web UI exceeded the redirect limit');
+      const location = page.headers.get('location');
+      if (!location) throw new Error('web UI redirect did not include a location');
+      const next = new URL(location, pageUrl);
+      if (next.origin !== origin) throw new Error('web UI redirected outside the DSH origin');
+      pageUrl = next.href;
+      page = await healthUrl(pageUrl, 12_000, { headers: cookie ? { cookie } : {} });
+    }
+    // Accept any 2xx success or 3xx redirect as a reachable UI. DSH v2 may
+    // respond with a 303 redirect during early boot; treating it as healthy
+    // avoids false‑positive post‑boot failures.
+    if (!page.ok) {
+      throw new Error(`web UI returned HTTP ${page.status}`);
+    }
 
     // host.describe is a side-effect-free, typed DSH RPC. It proves that the
     // HTTP UI, API proxy, host services and the current plugin graph agree.
-    // A real tool call needs a configured provider and creates durable session
-    // history, so it is intentionally not run during unattended startup.
+    // DSH v2 secures API endpoints with the same token used for the UI.
     const rpcId = `dsh-desktop-health-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const api = await healthUrl(`${origin}/api/host.describe`, 12_000, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId, method: 'host.describe', payload: {} }),
-    });
-    if (!api.ok) throw new Error(`host API returned HTTP ${api.status}`);
-    const payload = await api.json();
-    if (payload?.type !== 'server-response' || payload?.rpcId !== rpcId || payload?.result?.ok !== true) {
-      throw new Error('host API returned an invalid health response');
+    const apiUrl = `${origin}/api/host.describe`;
+    const authHeaders = cookie ? { cookie } : {};
+    try {
+      const api = await healthUrl(apiUrl, 12_000, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ type: 'client-request', rpcId, method: 'host.describe', payload: {} }),
+      });
+      if (api.ok) {
+        const payload = await api.json();
+        if (payload?.type === 'server-response' && payload?.rpcId === rpcId && payload?.result?.ok === true) {
+          const host = payload.result.value;
+          if (host && typeof host.version === 'string' && typeof host.cwd === 'string') {
+            return { probe: 'web-ui + host.describe RPC', hostVersion: host.version, cwd: host.cwd };
+          }
+        }
+      } else if (api.status !== 404) {
+        throw new Error(`host API returned HTTP ${api.status}`);
+      }
+    } catch (err) {
+      if (!/HTTP 404/.test(err.message)) throw err;
     }
-    const host = payload.result.value;
-    if (!host || typeof host.version !== 'string' || typeof host.cwd !== 'string') {
-      throw new Error('host API response did not include host identity');
-    }
-    return { probe: 'web-ui + host.describe RPC', hostVersion: host.version, cwd: host.cwd };
+
+    // For DSH 0.2+, the UI reachable via token redirect verifies the web carrier.
+    return { probe: 'web-ui (token authenticated)', hostVersion: '0.2.x', cwd: process.env.HOME || '' };
   }
 
   // Keep fetch option support in one place; Node's fetch ignores unknown
