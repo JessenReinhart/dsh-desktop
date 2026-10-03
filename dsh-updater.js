@@ -149,7 +149,9 @@ function createDshUpdater({ profileDir, homeDir, defaultVersion, bunPath, runtim
           '--port',
           '0',
         ], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '' },
+          // process.execPath is Electron in the desktop app. Run its child
+          // as Node, not as a second Chromium application.
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
           cwd: homeDir,
           stdio: ['ignore', 'pipe', 'pipe'],
           detached: process.platform !== 'win32',
